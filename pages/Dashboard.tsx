@@ -1,10 +1,11 @@
+
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Users, UserPlus, IndianRupee, Clock, AlertTriangle, Download } from 'lucide-react';
-import { MOCK_STATS, MOCK_STUDENTS, MOCK_ENQUIRIES } from '../constants';
+import { useData } from '../context/DataContext';
 import { FeeStatus } from '../types';
 
-const StatCard = ({ title, value, icon: Icon, bgClass, textClass, subText }: any) => (
+const StatCard = ({ title, value, icon: Icon, bgClass, subText }: any) => (
   <div className={`p-6 rounded-xl shadow-sm text-white ${bgClass} relative overflow-hidden`}>
     <div className="relative z-10">
       <p className="text-xs font-bold uppercase tracking-wider opacity-90 mb-1">{title}</p>
@@ -24,6 +25,28 @@ const QuickAction = ({ label, icon: Icon, color, onClick, isLink, to }: any) => 
 };
 
 export const Dashboard = () => {
+  const { students, enquiries } = useData();
+
+  // Calculate Real-time Stats
+  const totalStudents = students.length;
+  const totalEnquiries = enquiries.filter(e => e.status !== 'Converted' && e.status !== 'Closed').length; // Only Active
+  
+  const feesCollected = students.reduce((sum, student) => sum + (student.paidFee || 0), 0);
+  const pendingFees = students.reduce((sum, student) => sum + (student.balance || 0), 0);
+  
+  const fullyPaidStudents = students.filter(s => s.feeStatus === FeeStatus.PAID).length;
+  const partialStudents = students.filter(s => s.feeStatus === FeeStatus.PARTIAL).length;
+  const unpaidStudents = students.filter(s => s.feeStatus === FeeStatus.UNPAID).length;
+
+  // Get Recent Data
+  const recentStudents = [...students]
+    .sort((a, b) => new Date(b.joinDate).getTime() - new Date(a.joinDate).getTime())
+    .slice(0, 5);
+    
+  const recentEnquiries = [...enquiries]
+    .sort((a, b) => new Date(b.addedOn).getTime() - new Date(a.addedOn).getTime())
+    .slice(0, 5);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -47,25 +70,25 @@ export const Dashboard = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard 
           title="Total Students" 
-          value={MOCK_STATS.totalStudents} 
+          value={totalStudents} 
           icon={Users} 
           bgClass="bg-blue-600" 
         />
         <StatCard 
-          title="Total Enquiries" 
-          value={MOCK_STATS.totalEnquiries} 
+          title="Active Enquiries" 
+          value={totalEnquiries} 
           icon={UserPlus} 
           bgClass="bg-sky-500" 
         />
         <StatCard 
           title="Fees Collected" 
-          value={`₹${MOCK_STATS.feesCollected.toFixed(2)}`} 
+          value={`₹${feesCollected.toLocaleString('en-IN')}`} 
           icon={IndianRupee} 
           bgClass="bg-green-600" 
         />
         <StatCard 
           title="Pending Fees" 
-          value={`₹${MOCK_STATS.pendingFees.toFixed(2)}`} 
+          value={`₹${pendingFees.toLocaleString('en-IN')}`} 
           icon={Clock} 
           bgClass="bg-orange-500" 
         />
@@ -77,15 +100,15 @@ export const Dashboard = () => {
           <h2 className="text-slate-600 font-medium mb-6">Fee Status Overview</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-green-50 border border-green-100 p-6 rounded-lg text-center">
-              <div className="text-3xl font-bold text-green-600 mb-1">{MOCK_STATS.fullyPaidStudents}</div>
+              <div className="text-3xl font-bold text-green-600 mb-1">{fullyPaidStudents}</div>
               <div className="text-sm text-green-700 font-medium">Fully Paid</div>
             </div>
             <div className="bg-orange-50 border border-orange-100 p-6 rounded-lg text-center">
-              <div className="text-3xl font-bold text-orange-600 mb-1">{MOCK_STATS.partialStudents}</div>
+              <div className="text-3xl font-bold text-orange-600 mb-1">{partialStudents}</div>
               <div className="text-sm text-orange-700 font-medium">Partially Paid</div>
             </div>
             <div className="bg-red-50 border border-red-100 p-6 rounded-lg text-center">
-              <div className="text-3xl font-bold text-red-600 mb-1">{MOCK_STATS.unpaidStudents}</div>
+              <div className="text-3xl font-bold text-red-600 mb-1">{unpaidStudents}</div>
               <div className="text-sm text-red-700 font-medium">Unpaid</div>
             </div>
           </div>
@@ -135,7 +158,7 @@ export const Dashboard = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {MOCK_STUDENTS.slice(0, 3).map((student) => (
+                {recentStudents.length > 0 ? recentStudents.map((student) => (
                   <tr key={student.id} className="hover:bg-slate-50">
                     <td className="px-6 py-4 font-medium text-blue-600">{student.name}</td>
                     <td className="px-6 py-4 text-slate-600">{student.course}</td>
@@ -148,7 +171,9 @@ export const Dashboard = () => {
                       </span>
                     </td>
                   </tr>
-                ))}
+                )) : (
+                  <tr><td colSpan={3} className="p-4 text-center text-slate-400">No students yet</td></tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -171,18 +196,20 @@ export const Dashboard = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {MOCK_ENQUIRIES.slice(0, 3).map((enquiry) => (
+                {recentEnquiries.length > 0 ? recentEnquiries.map((enquiry) => (
                   <tr key={enquiry.id} className="hover:bg-slate-50">
                     <td className="px-6 py-4 font-medium text-slate-800">{enquiry.name}</td>
                     <td className="px-6 py-4 text-slate-600">{enquiry.courseInterested}</td>
                     <td className="px-6 py-4 text-slate-600">{enquiry.mobile}</td>
                     <td className="px-6 py-4">
-                       <button className="bg-green-500 text-white p-1.5 rounded hover:bg-green-600">
+                       <Link to={`/enquiries/edit/${enquiry.id}`} className="bg-green-500 text-white p-1.5 rounded hover:bg-green-600 inline-block">
                          <UserPlus className="w-4 h-4" />
-                       </button>
+                       </Link>
                     </td>
                   </tr>
-                ))}
+                )) : (
+                  <tr><td colSpan={4} className="p-4 text-center text-slate-400">No enquiries yet</td></tr>
+                )}
               </tbody>
             </table>
           </div>

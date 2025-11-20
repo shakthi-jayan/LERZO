@@ -1,25 +1,6 @@
 
-import { DashboardStats, Invoice } from './types';
-
 export const APP_NAME = "Lerzo";
 export const APP_SUBTITLE = "Student Management System";
-
-export const MOCK_STATS: DashboardStats = {
-  totalStudents: 0,
-  totalEnquiries: 0,
-  feesCollected: 0,
-  pendingFees: 0,
-  unpaidStudents: 0,
-  partialStudents: 0,
-  fullyPaidStudents: 0
-};
-
-// Mock data removed in favor of Firestore data
-export const MOCK_STUDENTS = [];
-export const MOCK_ENQUIRIES = [];
-export const MOCK_COURSES = [];
-export const MOCK_BATCHES = [];
-export const MOCK_INVOICES: Invoice[] = [];
 
 export const SIDEBAR_ITEMS = [
   { label: 'Dashboard', path: '/', icon: 'LayoutDashboard' },

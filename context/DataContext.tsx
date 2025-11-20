@@ -1,7 +1,8 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { Student, Enquiry, FeeStatus, EnquiryStatus, Payment, Course, Batch, Scheme } from '../types';
-import { MOCK_STUDENTS, MOCK_ENQUIRIES, MOCK_COURSES, MOCK_BATCHES } from '../constants';
 
 interface DataContextType {
   students: Student[];
@@ -10,6 +11,7 @@ interface DataContextType {
   courses: Course[];
   batches: Batch[];
   schemes: Scheme[];
+  loading: boolean;
   
   addStudent: (student: Student) => void;
   updateStudent: (id: string, updatedStudent: Partial<Student>) => void;
@@ -18,7 +20,7 @@ interface DataContextType {
   addEnquiry: (enquiry: Enquiry) => void;
   updateEnquiry: (id: string, updatedEnquiry: Partial<Enquiry>) => void;
   deleteEnquiry: (id: string) => void;
-  convertEnquiryToStudent: (enquiryId: string) => Enquiry | undefined;
+  convertEnquiryToStudent: (enquiryId: string) => Promise<Enquiry | undefined>;
   
   addCourse: (course: Course) => void;
   updateCourse: (id: string, updatedCourse: Partial<Course>) => void;
@@ -41,97 +43,112 @@ interface DataContextType {
   recordPayment: (payment: Payment) => void;
   getStudentPayments: (studentId: string) => Payment[];
 
-  restoreData: (data: any) => void;
+  restoreData: (data: any) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // Initialize state from localStorage or fallback to MOCK data
-  const [students, setStudents] = useState<Student[]>(() => {
-    const saved = localStorage.getItem('lerzo_students');
-    return saved ? JSON.parse(saved) : MOCK_STUDENTS;
-  });
-  const [enquiries, setEnquiries] = useState<Enquiry[]>(() => {
-    const saved = localStorage.getItem('lerzo_enquiries');
-    return saved ? JSON.parse(saved) : MOCK_ENQUIRIES;
-  });
-  const [courses, setCourses] = useState<Course[]>(() => {
-    const saved = localStorage.getItem('lerzo_courses');
-    return saved ? JSON.parse(saved) : MOCK_COURSES;
-  });
-  const [batches, setBatches] = useState<Batch[]>(() => {
-    const saved = localStorage.getItem('lerzo_batches');
-    return saved ? JSON.parse(saved) : MOCK_BATCHES;
-  });
-  const [schemes, setSchemes] = useState<Scheme[]>(() => {
-    const saved = localStorage.getItem('lerzo_schemes');
-    return saved ? JSON.parse(saved) : [{ id: '1', name: 'CHRISTMAS 2025', description: 'Holiday special', discountPercent: 10 }];
-  });
-  const [payments, setPayments] = useState<Payment[]>(() => {
-    const saved = localStorage.getItem('lerzo_payments');
-    return saved ? JSON.parse(saved) : [{ id: '101', studentId: '1', amount: 2000, date: '2025-11-20', method: 'Online', notes: 'Initial payment' }];
-  });
+  const [students, setStudents] = useState<Student[]>([]);
+  const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [schemes, setSchemes] = useState<Scheme[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Persist to localStorage whenever state changes
-  useEffect(() => localStorage.setItem('lerzo_students', JSON.stringify(students)), [students]);
-  useEffect(() => localStorage.setItem('lerzo_enquiries', JSON.stringify(enquiries)), [enquiries]);
-  useEffect(() => localStorage.setItem('lerzo_courses', JSON.stringify(courses)), [courses]);
-  useEffect(() => localStorage.setItem('lerzo_batches', JSON.stringify(batches)), [batches]);
-  useEffect(() => localStorage.setItem('lerzo_schemes', JSON.stringify(schemes)), [schemes]);
-  useEffect(() => localStorage.setItem('lerzo_payments', JSON.stringify(payments)), [payments]);
+  // Subscribe to Firestore Collections
+  useEffect(() => {
+    const unsubStudents = onSnapshot(collection(db, "students"), (snap) => {
+      const data = snap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Student));
+      setStudents(data);
+    });
+    const unsubEnquiries = onSnapshot(collection(db, "enquiries"), (snap) => {
+        const data = snap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Enquiry));
+        setEnquiries(data);
+    });
+    const unsubCourses = onSnapshot(collection(db, "courses"), (snap) => {
+        const data = snap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Course));
+        setCourses(data);
+    });
+    const unsubBatches = onSnapshot(collection(db, "batches"), (snap) => {
+        const data = snap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Batch));
+        setBatches(data);
+    });
+    const unsubSchemes = onSnapshot(collection(db, "schemes"), (snap) => {
+        const data = snap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Scheme));
+        setSchemes(data);
+    });
+    const unsubPayments = onSnapshot(collection(db, "payments"), (snap) => {
+        const data = snap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Payment));
+        setPayments(data);
+    });
+
+    setLoading(false);
+
+    return () => {
+        unsubStudents();
+        unsubEnquiries();
+        unsubCourses();
+        unsubBatches();
+        unsubSchemes();
+        unsubPayments();
+    };
+  }, []);
+
+  // --- Helpers ---
+  // We use setDoc with the ID provided by the app logic (usually Date.now()) to keep consistency
+  // rather than addDoc which creates random IDs, because some app logic might rely on the generated ID before saving.
 
   // --- Student Actions ---
-  const addStudent = (student: Student) => {
-    setStudents((prev) => [student, ...prev]);
+  const addStudent = async (student: Student) => {
+    await setDoc(doc(db, "students", student.id), student);
   };
 
-  const updateStudent = (id: string, updatedStudent: Partial<Student>) => {
-    setStudents((prev) =>
-      prev.map((student) => (student.id === id ? { ...student, ...updatedStudent } : student))
-    );
+  const updateStudent = async (id: string, updatedStudent: Partial<Student>) => {
+    await updateDoc(doc(db, "students", id), updatedStudent);
   };
 
-  const deleteStudent = (id: string) => {
-    setStudents((prev) => prev.filter((student) => student.id !== id));
-    setPayments((prev) => prev.filter((p) => p.studentId !== id));
+  const deleteStudent = async (id: string) => {
+    await deleteDoc(doc(db, "students", id));
+    // Cleanup payments
+    const studentPayments = payments.filter(p => p.studentId === id);
+    const batch = writeBatch(db);
+    studentPayments.forEach(p => {
+        batch.delete(doc(db, "payments", p.id));
+    });
+    await batch.commit();
   };
 
-  const getStudent = (id: string) => {
-    return students.find(s => s.id === id);
-  };
+  const getStudent = (id: string) => students.find(s => s.id === id);
 
   // --- Enquiry Actions ---
-  const addEnquiry = (enquiry: Enquiry) => {
-    setEnquiries((prev) => [enquiry, ...prev]);
+  const addEnquiry = async (enquiry: Enquiry) => {
+    await setDoc(doc(db, "enquiries", enquiry.id), enquiry);
   };
 
-  const updateEnquiry = (id: string, updatedEnquiry: Partial<Enquiry>) => {
-    setEnquiries((prev) =>
-      prev.map((enq) => (enq.id === id ? { ...enq, ...updatedEnquiry } : enq))
-    );
+  const updateEnquiry = async (id: string, updatedEnquiry: Partial<Enquiry>) => {
+    await updateDoc(doc(db, "enquiries", id), updatedEnquiry);
   };
 
-  const deleteEnquiry = (id: string) => {
-    setEnquiries((prev) => prev.filter((enq) => enq.id !== id));
+  const deleteEnquiry = async (id: string) => {
+    await deleteDoc(doc(db, "enquiries", id));
   };
 
-  const getEnquiry = (id: string) => {
-    return enquiries.find(e => e.id === id);
-  };
+  const getEnquiry = (id: string) => enquiries.find(e => e.id === id);
 
-  const convertEnquiryToStudent = (enquiryId: string) => {
+  const convertEnquiryToStudent = async (enquiryId: string) => {
     const enquiry = enquiries.find((e) => e.id === enquiryId);
     if (enquiry) {
-      updateEnquiry(enquiryId, { status: EnquiryStatus.CONVERTED });
+      await updateEnquiry(enquiryId, { status: EnquiryStatus.CONVERTED });
       return enquiry;
     }
     return undefined;
   };
 
   // --- Payment Actions ---
-  const recordPayment = (payment: Payment) => {
-      setPayments(prev => [payment, ...prev]);
+  const recordPayment = async (payment: Payment) => {
+      await setDoc(doc(db, "payments", payment.id), payment);
       
       // Update Student Balance automatically
       const student = students.find(s => s.id === payment.studentId);
@@ -144,7 +161,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (newPaid >= netFee) newStatus = FeeStatus.PAID;
           else if (newPaid > 0) newStatus = FeeStatus.PARTIAL;
 
-          updateStudent(student.id, {
+          await updateStudent(student.id, {
               paidFee: newPaid,
               balance: newBalance,
               feeStatus: newStatus
@@ -157,58 +174,59 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // --- Course Actions ---
-  const addCourse = (course: Course) => {
-    setCourses(prev => [...prev, course]);
+  const addCourse = async (course: Course) => {
+    await setDoc(doc(db, "courses", course.id), course);
   };
-  const updateCourse = (id: string, updatedCourse: Partial<Course>) => {
-    setCourses(prev => prev.map(c => c.id === id ? { ...c, ...updatedCourse } : c));
+  const updateCourse = async (id: string, updatedCourse: Partial<Course>) => {
+    await updateDoc(doc(db, "courses", id), updatedCourse);
   };
-  const deleteCourse = (id: string) => {
-    setCourses(prev => prev.filter(c => c.id !== id));
+  const deleteCourse = async (id: string) => {
+    await deleteDoc(doc(db, "courses", id));
   };
   const getCourse = (id: string) => courses.find(c => c.id === id);
 
   // --- Batch Actions ---
-  const addBatch = (batch: Batch) => {
-    setBatches(prev => [...prev, batch]);
+  const addBatch = async (batch: Batch) => {
+    await setDoc(doc(db, "batches", batch.id), batch);
   };
-  const updateBatch = (id: string, updatedBatch: Partial<Batch>) => {
-    setBatches(prev => prev.map(b => b.id === id ? { ...b, ...updatedBatch } : b));
+  const updateBatch = async (id: string, updatedBatch: Partial<Batch>) => {
+    await updateDoc(doc(db, "batches", id), updatedBatch);
   };
-  const deleteBatch = (id: string) => {
-    setBatches(prev => prev.filter(b => b.id !== id));
+  const deleteBatch = async (id: string) => {
+    await deleteDoc(doc(db, "batches", id));
   };
   const getBatch = (id: string) => batches.find(b => b.id === id);
 
   // --- Scheme Actions ---
-  const addScheme = (scheme: Scheme) => {
-    setSchemes(prev => [...prev, scheme]);
+  const addScheme = async (scheme: Scheme) => {
+    await setDoc(doc(db, "schemes", scheme.id), scheme);
   };
-  const updateScheme = (id: string, updatedScheme: Partial<Scheme>) => {
-    setSchemes(prev => prev.map(s => s.id === id ? { ...s, ...updatedScheme } : s));
+  const updateScheme = async (id: string, updatedScheme: Partial<Scheme>) => {
+    await updateDoc(doc(db, "schemes", id), updatedScheme);
   };
-  const deleteScheme = (id: string) => {
-    setSchemes(prev => prev.filter(s => s.id !== id));
+  const deleteScheme = async (id: string) => {
+    await deleteDoc(doc(db, "schemes", id));
   };
   const getScheme = (id: string) => schemes.find(s => s.id === id);
 
-  // --- Restore Action ---
-  const restoreData = (data: any) => {
-    if (data.students && Array.isArray(data.students)) setStudents(data.students);
-    if (data.enquiries && Array.isArray(data.enquiries)) setEnquiries(data.enquiries);
-    if (data.payments && Array.isArray(data.payments)) setPayments(data.payments);
-    if (data.courses && Array.isArray(data.courses)) setCourses(data.courses);
-    if (data.batches && Array.isArray(data.batches)) setBatches(data.batches);
-    if (data.schemes && Array.isArray(data.schemes)) setSchemes(data.schemes);
-    
-    // Alert removed to prevent sandbox blocking. 
-    // The calling component should handle notifications.
+  // --- Restore Action (Writes bulk data to Firestore) ---
+  const restoreData = async (data: any) => {
+    const batch = writeBatch(db);
+
+    if (data.students) data.students.forEach((s: any) => batch.set(doc(db, "students", s.id), s));
+    if (data.enquiries) data.enquiries.forEach((e: any) => batch.set(doc(db, "enquiries", e.id), e));
+    if (data.payments) data.payments.forEach((p: any) => batch.set(doc(db, "payments", p.id), p));
+    if (data.courses) data.courses.forEach((c: any) => batch.set(doc(db, "courses", c.id), c));
+    if (data.batches) data.batches.forEach((b: any) => batch.set(doc(db, "batches", b.id), b));
+    if (data.schemes) data.schemes.forEach((s: any) => batch.set(doc(db, "schemes", s.id), s));
+
+    await batch.commit();
   };
 
   return (
     <DataContext.Provider
       value={{
-        students, enquiries, payments, courses, batches, schemes,
+        students, enquiries, payments, courses, batches, schemes, loading,
         addStudent, updateStudent, deleteStudent, getStudent,
         addEnquiry, updateEnquiry, deleteEnquiry, getEnquiry, convertEnquiryToStudent,
         addCourse, updateCourse, deleteCourse, getCourse,

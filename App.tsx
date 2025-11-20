@@ -22,6 +22,7 @@ import { Settings } from './pages/Settings';
 import { Subscription } from './pages/Subscription';
 import { Backup } from './pages/Backup';
 import { Login } from './pages/Login';
+import { BulkSMS } from './pages/BulkSMS';
 import { WifiOff } from 'lucide-react';
 import { DataProvider } from './context/DataContext';
 
@@ -62,6 +63,7 @@ const AppRoutes = () => {
       <Route path="/students/edit/:id" element={<PrivateRoute><AddStudent /></PrivateRoute>} />
       <Route path="/students/:id" element={<PrivateRoute><StudentDetails /></PrivateRoute>} />
       <Route path="/students/:id/pay-fees" element={<PrivateRoute><RecordPayment /></PrivateRoute>} />
+      <Route path="/bulk-sms" element={<PrivateRoute><BulkSMS /></PrivateRoute>} />
       
       <Route path="/enquiries" element={<PrivateRoute><Enquiries /></PrivateRoute>} />
       <Route path="/enquiries/add" element={<PrivateRoute><AddEnquiry /></PrivateRoute>} />

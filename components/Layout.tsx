@@ -4,7 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, UserPlus, ClipboardList, FilePlus, 
   BookOpen, Tag, Clock, Download, Settings, CreditCard, Database,
-  Menu, LogOut, ShieldCheck, ShieldOff
+  Menu, LogOut, ShieldCheck, ShieldOff, MessageSquare
 } from 'lucide-react';
 import { APP_NAME, APP_SUBTITLE, SIDEBAR_ITEMS } from '../constants';
 
@@ -14,7 +14,7 @@ interface LayoutProps {
 
 const IconMap: Record<string, any> = {
   LayoutDashboard, Users, UserPlus, ClipboardList, FilePlus, 
-  BookOpen, Tag, Clock, Download, Settings, CreditCard, Database
+  BookOpen, Tag, Clock, Download, Settings, CreditCard, Database, MessageSquare
 };
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {

@@ -78,7 +78,7 @@ export const BulkSMS = () => {
       */
 
       console.log("--- SIMULATING TWILIO SMS SEND ---");
-      console.log("API Key:", process.env.REACT_APP_TWILIO_API_KEY ? "API Key Present" : "Missing API Key");
+      console.log("API Key:", (import.meta as any).env.VITE_TWILIO_API_KEY ? "API Key Present" : "Missing API Key");
       console.log("Message:", message);
       console.log("Recipients:", Array.from(selectedStudentIds).map(id => {
           const s = students.find(st => st.id === id);
